@@ -5,10 +5,13 @@ import logging
 from pygame import draw
 from pygame import display
 
+
+from font import font_data
+
+
 logging.basicConfig(level=logging.DEBUG)
 
 black= 0 , 0 ,0
-
 
 class Screen:
     def __init__(self, w=64, h=32):
@@ -20,7 +23,7 @@ class Screen:
         self.PIXEL_OFF = (0,0,0)
         pygame.init()
         self.screen = pygame.display.set_mode((self.w * self.scale, self.h * self.scale))
-        self.screen.fill('darkgreen')
+        self.screen.fill('black')
         display.flip()
         display.set_caption('Chip8 emulator - pyChip8')
 
@@ -32,17 +35,20 @@ class Screen:
         if pixel_color == self.PIXEL_ON:
             color = 1
 
-        if color:
-            self.PIXEL_COLOR = self.PIXEL_ON
-        else:
-            self.PIXEL_COLOR = self.PIXEL_OFF
-
         return color
 
-    def set_pixel(self, x, y):
+    def set_pixel(self, x, y, color):
+
+        if color:
+            pixel_color = self.PIXEL_ON
+        else:
+            pixel_color = self.PIXEL_OFF
+
+        logging.debug(f'setting pixel color to: {pixel_color}')
+
         draw.rect(
                 self.screen,
-                self.PIXEL_COLOR,
+                pixel_color,
                 (x*self.scale, y*self.scale, self.scale, self.scale))
 
     def clear(self):
@@ -57,23 +63,28 @@ class Emulator:
         self.registers = [0]*16
         self.I = 0
         self.memory = 4096 * [0x0]
-        self.pc = 0
+        self.pc = 0x200
         self.DRAW_FLAG = False
         self.display = [0]*64*32
+        self.rom = [0x0] * 4096
+
+        self.FONT_START_ADDRESS = 0x50
+        self.FONT_BYTES_COUNT = 80
     
-
-    def load_rom(self,path):
+    def load_rom(self, path):
         rom =  []
-        with open(path,"rb") as f:
-            logging.debug(f)
-            _file =  f.read()
-            #logging.debug(_file)
+        if isinstance(path, list):
+            for index, byte in enumerate(path):
+                self.rom[self.FONT_START_ADDRESS + index] = byte
+        else:
+            with open(path,"rb") as f:
+                logging.debug(f)
+                _file =  f.read()
+                #logging.debug(_file)
 
-            for i in _file:
-                rom.append(i)
+                for index, byte in enumerate(_file):
+                    self.rom[0x200 + index] = byte
 
-        self.rom = rom
-        logging.debug(self.rom)
 
         # print(type(self.rom[1]),",,,")
 
@@ -112,16 +123,21 @@ class Emulator:
             instruction = ins & 0x0fff
 
             if instruction == 0xe0:
-                logging.debug('clear screen()')
+                logging.debug('CLEAR SCREEN')
             if instruction == 0xee:
                 pass
 
             self.pc += 2
 
         elif opcode == 0x1000:
-            addr = opcode & 0x0fff
+            '''
+            1nnn: Jump to location nnn.
+            '''
+
+            addr = ins & 0x0fff
             self.pc = addr
-            logging.debug('jump')
+            logging.debug(f' {hex(opcode)} JUMP {hex(addr)}')
+            
         
         elif opcode == 0x2000:
             logging.debug('Call addr')
@@ -129,29 +145,35 @@ class Emulator:
         
         elif opcode == 0x6000:
             '''
-            6XNN LD Vx NN
+            6XNN LD Vx NN : Load value NN into register Vx
             '''
-            logging.debug('set register value')
-            reg = ins & 0xf00 >> 7
-            value = ins & 0xff
-            print(reg,"reeeeh", self.registers)
+            
+            reg = ins & 0x0f00 >> 8
+            value = ins & 0x00ff 
             self.registers[reg] = value
             self.pc += 2
+            logging.debug(f'LOAD REGISTER {reg} {value}')
         
         elif opcode == 0x7000:
-            logging.debug('add register value')
-            reg = ins & 0xf00 >> 7
-            value = ins & 0xff
+            logging.debug('ADD REGISTER')
+            
+            reg = ins & 0x0f00 >> 8
+            value = ins & 0x00ff
             val = self.registers[reg]
             self.registers[reg] = val + value 
             self.pc += 2
 
 
         elif opcode == 0xA000:
-            logging.debug('set index register')
-            value = opcode & 0x0fff
+            '''
+            Annn: Set I = nnn.
+            The value of register I is set to nnn.
+
+            ''' 
+            value = ins & 0x0fff
             self.I = value
             self.pc += 2
+            logging.debug(f'SET INDEX REGISTER I {value}')
 
         elif opcode == 0xd000:
             '''
@@ -159,13 +181,14 @@ class Emulator:
             Display n-byte sprite starting at memory location I at (Vx, Vy), set VF= collision.
             '''
             
-            logging.debug('draw')
             
             width = 8
             height = ins & 0x000f
             
             x = self.registers[ (ins & 0x0f00) >> 8];
             y = self.registers[ (ins & 0x00f0) >> 4];
+            
+            logging.debug(f' {hex(opcode)} DRAW {x} {y} {height}')
             
             self.registers[0xf] = 0
 
@@ -174,30 +197,31 @@ class Emulator:
 
                 for xline in range(8):
                     if (pixel & (0x80 >> xline)) != 0:
-                        
-                        #if self.screen.data[ (x + xline + ((y+yline) * 64))]  == 1:
-                        #    self.registers[0xf]=1
-
                         pixel_value = self.screen.get_pixel_value(x,y)
+                        if pixel_value == 1:
+                            self.registers[0xf]=1
                         pixel_value ^= 1
-                        self.screen.set_pixel(x+xline, y+yline)
+                        self.screen.set_pixel(x+xline, y+yline, pixel_value)
 
             self.darw_flag = True 
             self.pc += 2
 
 
         else:
-            logging.debug(f'{hex(opcode)} not implemented')
-            self.pc += 2
+            input()
+            raise Exception(f'{hex(opcode)} not implemented')
+
 
 if __name__ == "__main__":
     screen = Screen()
     emulator = Emulator(screen=screen)
     #rom = r"C:\Users\KshitijSingh\py\a.ch8"
-    rom = r"C:\Users\KshitijSingh\py\ibmlogo.ch8"
+    rom = r"C:\Users\KshitijSingh\py\pyChip8\ibmlogo.ch8"
     
+    emulator.load_rom(font_data)
     emulator.load_rom(rom)
-
+    logging.debug([hex(i) for i in emulator.rom])
+    print(len(emulator.rom), "bytes")
     emulator.emulate_cycle()
 
 
