@@ -19,7 +19,7 @@ class Screen:
         self.h = h
         self.scale = 10
         self.PIXEL_COLOR = 0
-        self.PIXEL_ON = (255, 255, 255)
+        self.PIXEL_ON = (0, 255, 0)
         self.PIXEL_OFF = (0,0,0)
         pygame.init()
         self.screen = pygame.display.set_mode((self.w * self.scale, self.h * self.scale))
@@ -44,15 +44,15 @@ class Screen:
         else:
             pixel_color = self.PIXEL_OFF
 
-        logging.debug(f'setting pixel color to: {pixel_color}')
+        #logging.debug(f'setting pixel color to: {pixel_color}')
 
         draw.rect(
                 self.screen,
                 pixel_color,
                 (x*self.scale, y*self.scale, self.scale, self.scale))
 
-    def clear(self):
-        pass
+    def clear_screen(self):
+        self.screen.fill('black')
 
 
 
@@ -124,6 +124,8 @@ class Emulator:
 
             if instruction == 0xe0:
                 logging.debug('CLEAR SCREEN')
+                self.screen.clear_screen()
+
             if instruction == 0xee:
                 pass
 
@@ -148,19 +150,20 @@ class Emulator:
             6XNN LD Vx NN : Load value NN into register Vx
             '''
             
-            reg = ins & 0x0f00 >> 8
+            reg = (ins & 0x0f00) >> 8
             value = ins & 0x00ff 
             self.registers[reg] = value
             self.pc += 2
             logging.debug(f'LOAD REGISTER {reg} {value}')
-        
+       
+
         elif opcode == 0x7000:
-            logging.debug('ADD REGISTER')
             
-            reg = ins & 0x0f00 >> 8
+            reg = (ins & 0x0f00) >> 8
             value = ins & 0x00ff
             val = self.registers[reg]
             self.registers[reg] = val + value 
+            logging.debug(f'[+] REGISTER V{reg} val({val}) value({value})')
             self.pc += 2
 
 
@@ -199,11 +202,10 @@ class Emulator:
                     if (pixel & (0x80 >> xline)) != 0:
                         pixel_value = self.screen.get_pixel_value(x,y)
                         if pixel_value == 1:
-                            self.registers[0xf]=1
+                            self.registers[0xf] = 1
                         pixel_value ^= 1
                         self.screen.set_pixel(x+xline, y+yline, pixel_value)
 
-            self.darw_flag = True 
             self.pc += 2
 
 
