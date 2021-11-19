@@ -154,7 +154,7 @@ class Emulator:
             value = ins & 0x00ff 
             self.registers[reg] = value
             self.pc += 2
-            logging.debug(f'LOAD REGISTER {reg} {value}')
+            logging.debug(f'LOAD  V{reg} {value}')
        
 
         elif opcode == 0x7000:
@@ -163,7 +163,7 @@ class Emulator:
             value = ins & 0x00ff
             val = self.registers[reg]
             self.registers[reg] = val + value 
-            logging.debug(f'[+] REGISTER V{reg} val({val}) value({value})')
+            logging.debug(f'ADD REG V{reg} {value}')
             self.pc += 2
 
 
@@ -176,7 +176,7 @@ class Emulator:
             value = ins & 0x0fff
             self.I = value
             self.pc += 2
-            logging.debug(f'SET INDEX REGISTER I {value}')
+            logging.debug(f'SET I {hex(value)}')
 
         elif opcode == 0xd000:
             '''
@@ -184,27 +184,28 @@ class Emulator:
             Display n-byte sprite starting at memory location I at (Vx, Vy), set VF= collision.
             '''
             
-            
             width = 8
             height = ins & 0x000f
+            reg_x =  (ins & 0x0f00) >> 8
+            reg_y =  (ins & 0x00f0) >> 4
+            x = self.registers[reg_x];
+            y = self.registers[reg_y];
             
-            x = self.registers[ (ins & 0x0f00) >> 8];
-            y = self.registers[ (ins & 0x00f0) >> 4];
-            
-            logging.debug(f' {hex(opcode)} DRAW {x} {y} {height}')
+            logging.debug(f'DRAW V{reg_x} V{reg_y} {height}')
             
             self.registers[0xf] = 0
 
             for yline in range(0, height):
                 pixel = self.rom[self.I + yline]
-
                 for xline in range(8):
                     if (pixel & (0x80 >> xline)) != 0:
-                        pixel_value = self.screen.get_pixel_value(x,y)
-                        if pixel_value == 1:
-                            self.registers[0xf] = 1
+                        pixel_value = self.screen.get_pixel_value(x+xline,y+yline)
                         pixel_value ^= 1
                         self.screen.set_pixel(x+xline, y+yline, pixel_value)
+                        if pixel_value == 0:
+                            self.registers[0xf] = 1
+                        else:
+                            self.registers[0xf] = 0
 
             self.pc += 2
 
