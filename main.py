@@ -5,7 +5,7 @@ import logging
 from pygame import draw
 from pygame import display
 
-
+import random
 from font import font_data
 
 
@@ -210,6 +210,89 @@ class Emulator:
             self.pc += 2
 
 
+        # --
+        elif opcode == 0xc000:
+            reg = (ins & 0x0f00) >> 8
+            value = ins & 0x00ff
+            self.registers[reg] = random.randint(0,255) & value 
+            self.pc += 2
+
+        elif opcode == 0x4000:
+            reg = ins & (0x0f00) >> 8
+            Vx = self.registers[reg]
+            kk = ins & 0x00ff 
+            # print(Vx, kk)
+            if Vx != kk:
+                self.pc += 4 
+            else:
+                self.pc += 2
+
+        elif opcode == 0x8000:
+            x = ins & (0x0f00) >> 8
+            y = ins & (0x00f0) >> 4
+
+            Vx = self.registers[x]
+            Vy = self.registers[y]
+
+            end = 0x000f
+            if end == 0:
+                self.registers[x] = Vy 
+            if end == 1:
+                self.registers[x] =  Vx | Vy 
+            if end == 2:
+                self.registers[x] =  Vx & Vy 
+            if end == 3:
+                self.registers[x] =  Vx ^ Vy 
+            if end == 4:
+                val = Vx + Vy 
+                if val > 0xff:
+                    self.registers[0xf] = 1
+                else:
+                    self.registers[0xf] = 1
+
+                self.registers[x] = (ins & 0x0f00) >> 8
+
+            if end == 5:
+                if Vx >  Vy:
+                    self.registers[0xf] = 1
+                else:
+                    self.registers[0xf] = 0
+
+                self.registers[x] = Vx - Vy
+
+            if end == 6:
+                if (Vx & 1) == 1:
+                    self.registers[x] = 1
+                else:
+                    self.registers[x] = 0 
+
+                self.registers[x] /= 2
+
+            if end == 7:
+                if Vy > Vx:
+                    self.registers[0xf] = 1
+                else:
+                    self.registers[0xf] = 0 
+                self.registers[x] = Vy - Vx
+
+            if end == 0xe:
+                if (Vx & 0xf000) == 1:
+                    self.registers[0xf] = 1
+                else:
+                    self.registers[0xf] = 0
+
+                self.registers[x] *= 2
+            self.pc += 2
+
+        elif opcode == 0x3000:
+            x = (ins & 0x0f00) >> 8 
+            kk = (ins & 0x00ff)
+            if self.registers[x] > kk:
+                self.pc += 4 # skip next instruction
+            else:
+                self.pc += 2
+
+
         else:
             input()
             raise Exception(f'{hex(opcode)} not implemented')
@@ -219,7 +302,10 @@ if __name__ == "__main__":
     screen = Screen()
     emulator = Emulator(screen=screen)
     #rom = r"C:\Users\KshitijSingh\py\a.ch8"
-    rom = r"C:\Users\KshitijSingh\py\pyChip8\ibmlogo.ch8"
+    # rom = r"/Users/akshaymahurkar/Documents/progs/pyChip8/ibmlogo.ch8")
+    # rom = r"/Users/akshaymahurkar/Downloads/br8kout.ch8"
+    rom = r"/Users/akshaymahurkar/Downloads/MAZE"
+    # rom = r"/Users/akshaymahurkar/Downloads/redOctober.ch8")
     
     emulator.load_rom(font_data)
     emulator.load_rom(rom)
